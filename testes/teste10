@@ -1,0 +1,8 @@
+
+int a; 
+for (i = 0; i < size / 2 && c>=1; i++ ) {
+swap = arr[i];
+i=a[20][20]; 
+arr[i] = arr[size-1-i];
+arr[size-1-i] = swap;
+}

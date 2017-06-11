@@ -1,0 +1,35 @@
+int n;
+Print (N?);
+Scan n;
+int i;
+int j;
+int res[n];
+int maior;
+int ind;
+for ( i = 0 ; i < n ; i++)
+{
+Print (inteiro?);
+Scan res[i];
+}
+for ( i = 0 ; i < n ; i++)
+{
+maior = res[i];
+ind = -1;
+for ( j = i ; j < n ; j++)
+{
+if ( res[j] > maior )
+{
+maior = res[j];
+ind = j;
+}
+}
+if(ind != -1)
+{
+res[ind] = res[i];
+res[i] = maior;
+}
+}
+for( i = 0 ; i < n ; i++)
+{
+Print ("RES: %d\n", res[i]);
+}

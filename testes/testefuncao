@@ -1,0 +1,12 @@
+# void maria(int x, int y){
+	int i;
+	int j; 
+for (i=0; i<j; i++){
+		if(x>6){
+		y=y+3;
+		}
+		else{
+		y=y+4;}
+	}
+	return y; 
+}

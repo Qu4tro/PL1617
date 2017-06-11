@@ -1,0 +1,27 @@
+int n;
+int m;
+Print (N?);
+Scan n;
+Print (M?);
+Scan m;
+int i;
+int j;
+int res[n][m];
+int soma;
+int maximo;
+soma = 0;
+for ( i = 0 ; i < n ; i++)
+{
+for ( j = 0 ; j < m ; j++)
+{
+Print (inteiro?);
+Scan res[i][j];
+soma = soma + res[i][j];
+if( res[i][j] > maximo )
+{
+maximo = res[i][j];
+}
+}
+}
+
+Print ("Media: %d\nMaximo: %d\n", (soma / (n*m)), maximo);

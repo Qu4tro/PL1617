@@ -1,0 +1,5 @@
+int i; 
+do {
+	i=i+2;
+}
+while (i<=20) ; 
