@@ -4,12 +4,12 @@
     fprintf(f, "\n"); \
 } while (0);
 
-#include "compilador.h"
 #include <stdio.h>
 #include <string.h>
 #include "stack.h"
 #include <stdlib.h>
 #include "y.tab.h"
+#include "compilador.h"
 
 int yylex();
 int yylineno;
@@ -26,146 +26,96 @@ void must(int cond, char* msg){
     }
 }
 
-static int total = 0;
 FILE *f;
+
+int total_labels = 0;
+Environment env;
 Stack s;
+
+Address address;
 
 %}
 
-%union{
-    char* var_nome;
-    int valor;
-    Tipo tipo;
-    struct sVarAtr
-    {
-        char* var_nome;
-        int valor;
+%union {
+    char* varName;
+    int varValue;
+    Type varType;
+    struct sVarAtr {
+        char* varName;
+        int varValue;
         int size;
     } varAtr;   
 }
 
-%token INT WHILE FOR IF ELSE RETURN VOID PRINT SCAN DO
-%token <valor>num 
-%token <var_nome>id 
+%token INT WHILE IF ELSE PRINT SCAN
+%token <varValue>num 
+%token <varName>id 
 
-%type <tipo> TipoFun
-%type <tipo> Tipo
-%type <var_nome> IdFun
+%type <varType> Type
 %type <varAtr> Var
-
-// --------------------PROGRAMA ------------------------------------
-/**
-Um programa é uma lista de declarações, lista de Funcões , e uma lista de Instruções 
-*/
 
 %%
 
-Prog       :                    
-            ListaDecla                      {instruction("start");
-                                             instruction("jump inicio\n");
-                                            }	 	
-			ListaFun 			            {instruction("inicio: nop\n");}        		
-			ListInst    		            {instruction("stop\n");}                                                         
-                   				
+Start       : Declarations                      {instruction("start");
+                                                 instruction("jump inicio");
+                                                }	 	
+			  Stataments    		            {instruction("stop");}                                                         
             ; 
 
-ListaDecla  :                            
-            | ListaDecla Decla 
-            ;
+Declarations :                            
+             | Declarations Declaration 
+             ;
 
-ListaFun    :   
-            | ListaFun Funcao 
-            ;
+Stataments   : Statement                               
+             | Stataments Statement                                    
+             ;
 
-ListInst    : Inst                               
-            | ListInst Inst                                    
-            ;
+Type 		: INT                               {$$ = IntType;} 
 
-// --------------------  FUNCAO ------------------------------------
-/** A declaração de funções é precedida pelo símbolo terminal '\#'. 
- */
-
-Funcao      : '#' TipoFun IdFun                 {inserFuncao($2,$3);}
-                '(' ListaArg ')'                {decFunArgRefresh();
-                                                 instruction("%s: nop",$3);}
-                '{' ListaDecla ListInst '}'     {fim();}
-            ;            
-
-TipoFun     : VOID      	                    {$$ =_VOID;}
-            | INT                               {$$ =_INTS;}
-            ;
-
-IdFun 		: id 
-			;
-
-ListaArg    :   
-            | ListaArg2 ;
-
-ListaArg2   : Tipo Var                          {decArgumentos($2.var_nome);}
-            | ListaArg2  ','  Tipo Var          {decArgumentos($4.var_nome);}
-            ;
-
-Tipo 		: INT                               {$$ =_INTS;} 
-			; 
-
-
-// --------------------DECLARACAO ------------------------------------
-
-Decla       : INT id ';'                        {decVar($2, 1, 'S');
+Declaration : Type id ';'                       {declareVar(env, $2, 1, 'S');
                                                  instruction("pushi 0");
                                                 }   			                
-            | INT id '[' num ']' ';'            {decVar($2, $4, 'A');
+            | Type id '[' num ']' ';'           {declareVar(env, $2, $4, 'A');
                                                  instruction("pushn %d", $4);
-                                                }
-            | INT id '[' Var ']' ';'            {Endereco a = getEndereco($4.var_nome); 
-                                                 decVar($2, a.addr, 'A');                                     
-                                                 instruction("pushn %d", a.addr);
                                                 }
             ;
 
 
-Var 		: id                                {Endereco a=getEndereco($1);
-                                                 $$.var_nome=strdup($1);
-                                                 $$.valor=1;
+Var 		: id                                {address = getGlobalAddress(env, $1);
+                                                 $$.varName = strdup($1);
+                                                 $$.varValue = 0;
                                                 }
 			;
 
-// --------------------INSTRUCAO ------------------------------------
 
-ConjInst    :
-            |'{' ListInst '}'
+Block    :
+            | '{' Stataments '}'
             ;
 
-Inst        : If
-            | Decla
+Statement   : If
+            | Declaration
             | While
-            | For
             | Atrib ';'
             | Print';'
             | Scan ';'
-            | RETURN Exp ';'                    {instruction("storel %d", decFunRetAddr());
-                                                 instruction("return");
-                                                }
-            | ELSE                              {must(0, "'Else' sem um 'If' anteriormente");}                          
+            | ELSE                              {must(0, "'Else' without 'If'");}                          
             ;
 
-// ------------------------------------ ATRIBUIÇAO ------------------------------------
-
-Atrib       : Var '=' Exp                       {Endereco a = getEndereco($1.var_nome); 
-                                                 instruction("store%c %d", a.tipoVar, a.addr);
+Atrib       : Var '=' Exp                       {address = getGlobalAddress(env, $1.varName); 
+                                                 instruction("storeg %d", address.addr);
                                                 } 
 
-            | Var '+''+'                        {Endereco a = getEndereco($1.var_nome); 
-                                                 must(a.tipo == _INTS, "Tipos incompativeis");
+            | Var '+''+'                        {address = getGlobalAddress(env, $1.varName); 
+                                                 must(address.varType ==  IntType, "Wrong type");
                                                  instruction("pushi 1");
-                                                 instruction("push%c %d", a.tipoVar, a.addr);
+                                                 instruction("pushg %d", address.addr);
                                                  instruction("add");
-                                                 instruction("store%c %d", a.tipoVar, a.addr);
+                                                 instruction("storeg %d", address.addr);
                                                 }
 
-            | Var'[' Exp ']' '=' Exp            {Endereco a = getEndereco($1.var_nome);
-                                                 instruction("push%cp", (a.tipoVar=='l') ? 'f' : 'g');
-                                                 instruction("push%c %d", a.tipoVar, a.addr);
+            | Var'[' Exp ']' '=' Exp            {address = getGlobalAddress(env, $1.varName);
+                                                 instruction("pushgp");
+                                                 instruction("pushg %d", address.addr);
                                                  instruction("padd");
                                                  instruction("storen");
                                                 }
@@ -173,86 +123,64 @@ Atrib       : Var '=' Exp                       {Endereco a = getEndereco($1.var
 
 // ------------------------------------ PRINT SCAN ------------------------------------
  
-Print       : PRINT '(' Prints ')'                          
+Print       : PRINT '(' PrintAtom ')'                          
             ;
 
-Scan        : SCAN '(' Var ')'                  {Endereco a = getEndereco($3.var_nome); 
+Scan        : SCAN '(' Var ')'                  {address = getGlobalAddress(env, $3.varName); 
                                                  instruction("read");
                                                  instruction("atoi");
-                                                 instruction("store%c %d", a.tipoVar, a.addr);
+                                                 instruction("storeg %d", address.addr);
                                                 }       
             ;
 
-Prints      : num                               {instruction("writei %d\n",$1 );}           
-            | Var                               {Endereco a = getEndereco($1.var_nome);
-                                                 instruction("push%c %d", a.tipoVar, a.addr);
+PrintAtom   : num                               {instruction("writei %d",$1 );}           
+            | Var                               {address = getGlobalAddress(env, $1.varName);
+                                                 instruction("pushg %d", address.addr);
                                                  instruction("writei");
-                                                }   
-
-            | Var '['Exp ']'                    {Endereco a = getEndereco($1.var_nome); 
-                                                 instruction("push%cp", (a.tipoVar=='l') ? 'f' : 'g');
-                                                 instruction("push%c %d", a.tipoVar, a.addr);
+                                                } 
+            | Var '['Exp ']'                    {address = getGlobalAddress(env, $1.varName); 
+                                                 instruction("pushgp");
+                                                 instruction("pushg %d", address.addr);
                                                  instruction("padd");
                                                  instruction("loadn");
                                                 }  
-            | id                                {instruction("pushs %s", $1);
-                                                 instruction("writes");
-                                                }
             ;                    
-// ------------------------------------ IF THEN ELSE ------------------------------------
 
-If          :  IF                               {total++; 
-                                                 pushStack(s, total);
-                                                }
-			TestExpLog   	                    {instruction("jz end_condition_%d", peekStack(s));}
-			ConjInst  		                    {instruction("end_condition_%d", popStack(s));}	
+// Conditionals
+If          :  IF                               {pushStack(s, total_labels++);}
+			'(' ExpRel ')'   	                {instruction("jz end_condition_%d", peekStack(s));}
+			Block  		                        {instruction("end_condition_%d", popStack(s));}	
 			Else
             ;
 
 Else        :       
-            | ELSE ConjInst 
+            | ELSE Block 
             ;
 
-// ------------------------------------# WHILE ---------------------------------------------
 
-While       : WHILE                             {total++;
-                                                 pushStack(s, total);
+// Loops
+While       : WHILE                             {pushStack(s, total_labels++);
                                                  instruction("loop_%d: nop", peekStack(s));
                                                 }
-            TestExpLog                          {instruction("jz end_loop%d", peekStack(s)); }
-            ConjInst                            {instruction("jump loop_%d", peekStack(s));
+            '(' ExpRel ')'                      {instruction("jz end_loop%d", peekStack(s)); }
+            Block                               {instruction("jump loop_%d", peekStack(s));
                                                  instruction("end_loop%d", peekStack(s));
                                                  popStack(s);
                                                 }                                
             ;
 
-// ------------------------------------# FOR ---------------------------------------------
-
-For         : FOR ForHeader ConjInst            {instruction("jump loop_%dA", peekStack(s));
-                                                 instruction("end_loop%d", peekStack(s));
-                                                 popStack(s);
-                                                }              
-            ;
-
-ForHeader   :  '(' ForAtrib ';'                 {total++; 
-                                                 pushStack(s, total);
-                                                 instruction("loop_%d: nop", peekStack(s));
+// Expressions
+Exp 		: Term
+			| Exp '+' Term  			        {instruction("add");}
+			| Exp  '-' Term 			        {instruction("sub");}
+			| Exp '|''|' ExpRel                 {instruction("add");
+                                                 instruction("jz end_condition_%d: nop", peekStack(s));
+                                                 instruction("nequal");
                                                 }
-             ExpLog ';'                         {instruction("jz end_loop%d", peekStack(s));
-                                                 instruction("jump loop_%dB", peekStack(s));
-                                                 instruction("loop_%dA: nop", peekStack(s));
-                                                }
-             ForAtrib ')'                       {instruction("jump loop_%d", peekStack(s));
-                                                 instruction("loop_%dB: nop", peekStack(s));
-                                                }
-            ; 
+            | Exp '%' Term                      {instruction("mod");}
+			; 
 
-
-ForAtrib    : Atrib  
-            ;
-
-// -----------------------------------------------------------------CALCULO DE EXPRESSOES -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-ExpLog 		: Exp 
+ExpRel 		: Exp 
 			| Exp '=''=' Exp 		            {instruction("equal");}
 			| Exp '!''=' Exp                    {instruction("equal");
                                                  instruction("pushi 0");
@@ -265,65 +193,35 @@ ExpLog 		: Exp
 			; 
 
 
-Exp 		: Termo
-			|Exp '+' Termo  			        {instruction("add");}
-			|Exp  '-' Termo 			        {instruction("sub");}
-			|Exp '|''|' ExpLog                  {instruction("add");
-                                                 instruction("jz end_condition_%d: nop", peekStack(s));
-                                                 instruction("nequal");
-                                                }
-            |Exp '%' Termo                      {instruction("mod");}
-			; 
-
-
-Termo		: Fun
-			| Termo '/' Fun 			        {instruction("div");}
-			| Termo '*' Fun 			        {instruction("mul");}
-			| Termo '&''&' ExpLog               {instruction("pushi 1");
+Term		: Atom
+			| Term '/' Atom 			        {instruction("div");}
+			| Term '*' Atom 			        {instruction("mul");}
+			| Term '&''&' ExpRel                {instruction("pushi 1");
                                                  instruction("nequal");
                                                  instruction("jz end_condition_%d: nop",peekStack(s));
                                                 }
 			; 
 
-Fun 	   	: num                               {instruction("pushi %d", $1);}           
-            | Var  	                            {Endereco a = getEndereco($1.var_nome);
-                                                 instruction("push%c %d", a.tipoVar, a.addr);
+Atom 	   	: num                               {instruction("pushi %d", $1);}           
+            | Var  	                            {address = getGlobalAddress(env, $1.varName);
+                                                 instruction("pushg %d", address.addr);
                                                 } 	
-            | Var '['Exp ']'                    {Endereco a = getEndereco($1.var_nome); 
-                                                 instruction("push%cp", (a.tipoVar=='l') ? 'f' : 'g');
-                                                 instruction("push%c %d", a.tipoVar, a.addr);
+            | Var '[' Exp ']'                   {address = getGlobalAddress(env, $1.varName); 
+                                                 instruction("pushgp");
+                                                 instruction("pushg %d", address.addr);
                                                  instruction("padd");
                                                  instruction("loadn");
                                                 }  
-
-            | IdFun                             {funcaoExiste($1);
-                                                 instruction("pushi 0");
-                                                }
-            '(' FunArgs')'                      {instruction("call %s", $1);
-                                                 instruction("pop%d", numeroArgumentos());
-                                                }
-
             | '(' Exp ')'                  
             ;                                  
-
-FunArgs     :    
-            | FunArgs2 
-            ;
-
-FunArgs2    : Exp                               {proximoArgumento(_INTS);}                            
-            | FunArgs2 ',' Exp                  {proximoArgumento(_INTS);}             
-            ;
-
-TestExpLog  : '(' ExpLog ')'                                        
-            ;
 
 %%
 
 #include "lex.yy.c"
 
 int main(int argc, char* argv[]){
-    initVGlobalMap(); 
-    s = initStack();
+    env = initEnvironment();
+    s   = initStack();
 
     if (argc > 1){
         f = fopen(argv[1],"w+");
