@@ -6,10 +6,11 @@
 
 #include <stdio.h>
 #include <string.h>
-#include "stack.h"
 #include <stdlib.h>
+
 #include "y.tab.h"
-#include "compilador.h"
+#include "stack.h"
+#include "libCompile.h"
 
 int yylex();
 int yylineno;
@@ -39,7 +40,7 @@ Address address;
 %union {
     char* varName;
     int varValue;
-    Type varType;
+    int varType;
     struct sVarAtr {
         char* varName;
         int varValue;
@@ -70,7 +71,7 @@ Stataments   : Statement
              | Stataments Statement                                    
              ;
 
-Type 		: INT                               {$$ = IntType;} 
+Type 		: INT                               {$$ = (int) IntType;} 
 
 Declaration : Type id ';'                       {declareVar(env, $2, 1, 'S');
                                                  instruction("pushi 0");
@@ -92,28 +93,27 @@ Block    :
             | '{' Stataments '}'
             ;
 
-Statement   : If
-            | Declaration
-            | While
+Statement   : If ';'
+            | Declaration ';'
+            | While ';'
             | Atrib ';'
             | Print';'
             | Scan ';'
-            | ELSE                              {must(0, "'Else' without 'If'");}                          
             ;
 
 Atrib       : Var '=' Exp                       {address = getGlobalAddress(env, $1.varName); 
                                                  instruction("storeg %d", address.addr);
                                                 } 
 
-            | Var '+''+'                        {address = getGlobalAddress(env, $1.varName); 
-                                                 must(address.varType ==  IntType, "Wrong type");
+            | Var '+' '+'                        {address = getGlobalAddress(env, $1.varName); 
+                                                 must(address.varType == (int) IntType, "Wrong type");
                                                  instruction("pushi 1");
                                                  instruction("pushg %d", address.addr);
                                                  instruction("add");
                                                  instruction("storeg %d", address.addr);
                                                 }
 
-            | Var'[' Exp ']' '=' Exp            {address = getGlobalAddress(env, $1.varName);
+            | Var '[' Exp ']' '=' Exp            {address = getGlobalAddress(env, $1.varName);
                                                  instruction("pushgp");
                                                  instruction("pushg %d", address.addr);
                                                  instruction("padd");
@@ -121,8 +121,7 @@ Atrib       : Var '=' Exp                       {address = getGlobalAddress(env,
                                                 }
             ;
 
-// ------------------------------------ PRINT SCAN ------------------------------------
- 
+// IO
 Print       : PRINT '(' PrintAtom ')'                          
             ;
 

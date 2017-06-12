@@ -1,5 +1,5 @@
-#ifndef __COMPILADOR_H__
-#define __COMPILADOR_H__
+#ifndef COMPILADOR_H
+#define COMPILADOR_H
 
 typedef struct var *Var;
 typedef struct sEnvironment *Environment;
@@ -7,7 +7,7 @@ typedef struct sEnvironment *Environment;
 typedef enum eType {IntType, ArrayType} Type;
 typedef struct sAddress {
     int addr;
-    Type type;
+    Type varType;
 } Address;
 
 Environment initEnvironment();

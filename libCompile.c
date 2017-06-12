@@ -3,7 +3,8 @@
 #include <string.h>
 #include <assert.h>
 #include "hashmap.h"
-#include "compilador.h"
+
+#include "libCompile.h"
 
 void yyerror(char *s);
 void must(int cond, char *s);

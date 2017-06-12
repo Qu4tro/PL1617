@@ -1,5 +1,5 @@
 %{
-#include "compilador.h"
+#include "libCompile.h"
 #include "y.tab.h"
 
 %}
@@ -36,9 +36,7 @@ scan     	{ return (SCAN);   }
 \&			{ return ('&'); }
 [a-zA-Z]+  	{ yylval.varName  = strdup(yytext); return (id);}
 [0-9]+     	{ yylval.varValue = atoi(yytext);   return (num);}
-[\n]        { ; }
-\/\/.*      { ; }     
-.           { ; }
+.|\n        { ; }
 
 
 %%
